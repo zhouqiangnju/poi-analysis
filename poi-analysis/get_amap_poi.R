@@ -26,9 +26,10 @@ get_admin_geo= function(address){
   city_geo$geometry=city_geo%>% magrittr::extract('polyline') %>% str_split('\\|') %>% 
             lapply(str_split,';')%>% '[['(1)%>%
             lapply(str_split,',') %>% lapply(lapply,as.numeric) %>% 
-            lapply(list.rbind) %>% lapply(list) %>% st_multipolygon %>% st_sfc()
- city_geo=city_geo%>% dplyr:: %>% st_as_sf
+            lapply(list.rbind) %>% lapply(list) %>% st_multipolygon %>% st_sfc
+ city_geo=city_geo%>% dplyr::select(-'polyline') %>% st_as_sf
   
   return(city_geo)
 }
 nj_amap_sf=get_admin_geo('до╬╘')
+plot(nj_amap_sf$geometry)

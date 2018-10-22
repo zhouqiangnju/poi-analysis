@@ -123,20 +123,27 @@ get_poi=function(polygon,type,npage){
 
 #derterminants for if a grid's poi number of a certain type exceeds 20 page volume
 grid_poi=sapply(nj_grid$geometry,get_poi,'050000',20)
-         
-  
+#
 poi_n_page=function(grid,type,npage){
   
-  tryCatch({get_poi(grid,type,npage) %>% nrow
-  },error=function(e){
+    tryCatch({get_poi(grid,type,npage) %>% nrow
+    },error=function(e){
              paste0('error')
            }
            )
 }
-x=sapply(nj_grid$geometry,poi_n_page,'050000',20)
+
+poi_n_20page=function(grid,type){
+  poi_n_page(grid,type,20)
+}
+poi_n_1page=function(grid,type){
+  poi_n_page(grid,type,1)
+}
+x=sapply(sub_grid$geometry,poi_n_1page,'050000')
+
 #
 get_grid_poi=function(grid,type){
-  
+
    grid_poi=get_poi(grid,type,1)
    i=2
    while(poi_n_page(grid,type,i)!='error'){
@@ -146,6 +153,41 @@ get_grid_poi=function(grid,type){
    }
    return(grid_poi)
 }
+
+# divide grid into 4 piece and get poi for each piece
+make_sub_grid=function(grid,type){
+  sub_grid=grid%>%st_make_grid(n=c(2,2))%>% st_sf(id=paste0(grid$id,1:4),geometry=.)
+  sub_grid$n_p1=sapply(sub_grid$geometry,poi_n_page,type,1)
+  sub_grid$n_p20=sapply(sub_grid$geometry,poi_n_page,type,20)
+  
+  return(sub_grid)
+  
+}
+grid=nj_grid[45,]
+x=c('error',20,'error',20)
+grep(20,x)
+sub_grid=sub_grid[-1,]
+x=get_sub_grid(nj_grid[45,])
+get_sub_grid=function(grid,type){
+ #grid=nj_grid[1,]
+  grid=nj_grid[45,]
+  sub_grid=make_sub_grid(grid,'050000')
+
+  sub_grid_new=sub_grid[0,]
+  sub_grid=sub_grid[-grep(20,sub_grid$n_p20),]
+  while(length(grep(20,sub_grid$n_p20))){
+    for(i in grep(20,sub_grid$n_p20)){
+      sub_grid_new=sub_grid[i,]%>%make_sub_grid(type) %>% rbind(sub_grid_new,.)
+      }
+    sub_grid=sub_grid[-grep(20,sub_grid$n_p20),]%>%rbind(sub_grid,sub_grid_new)
+  }
+  return(sub_grid)
+                        
+}
+x=get_sub_grid(grid)
+x=sapply(sub_grid$geometry,get_grid_poi,'050000')
+
 x=get_grid_poi(nj_grid[4,],'050000')
 nj_grid$p20=x
 nj_poi1=get_poi(nj_grid[1,],'050000',3) %>% nrow
+x=make_sub_grid(sub_grid[3,],'050000')

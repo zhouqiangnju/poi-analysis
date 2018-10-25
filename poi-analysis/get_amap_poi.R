@@ -75,7 +75,7 @@ saveRDS(province,'Province.rds')
 #make grid
 #1 get grid within city region
 nj_sf=nj$admin_geo
-st_geometry(nj_sf)
+
 grid_intersects_admin =function(admin_sf){
   #the number of grid is 100 by default
  
@@ -122,7 +122,7 @@ get_poi=function(polygon,type,npage){
 }
 
 #derterminants for if a grid's poi number of a certain type exceeds 20 page volume
-grid_poi=sapply(nj_grid$geometry,get_poi,'050000',20)
+
 #
 poi_n_page=function(grid,type,npage){
   
@@ -163,31 +163,46 @@ make_sub_grid=function(grid,type){
   return(sub_grid)
   
 }
-grid=nj_grid[45,]
-x=c('error',20,'error',20)
-grep(20,x)
-sub_grid=sub_grid[-1,]
-x=get_sub_grid(nj_grid[45,])
-get_sub_grid=function(grid,type){
- #grid=nj_grid[1,]
-  grid=nj_grid[45,]
-  sub_grid=make_sub_grid(grid,'050000')
 
+get_sub_grid=function(grid,type){
+
+ 
+  sub_grid=make_sub_grid(grid,type)
   sub_grid_new=sub_grid[0,]
-  sub_grid=sub_grid[-grep(20,sub_grid$n_p20),]
-  while(length(grep(20,sub_grid$n_p20))){
+  
+  while(length(grep(20,sub_grid$n_p20))!=0){
     for(i in grep(20,sub_grid$n_p20)){
       sub_grid_new=sub_grid[i,]%>%make_sub_grid(type) %>% rbind(sub_grid_new,.)
       }
-    sub_grid=sub_grid[-grep(20,sub_grid$n_p20),]%>%rbind(sub_grid,sub_grid_new)
+    #sub_grid=sub_grid[-grep(20,sub_grid$n_p20),]%>%rbind(sub_grid_new)
+    sub_grid=sub_grid[-grep(20,sub_grid$n_p20),]
+    sub_grid=rbind(sub_grid,sub_grid_new)
+    sub_grid_new=sub_grid[0,]
   }
   return(sub_grid)
                         
 }
-x=get_sub_grid(grid)
-x=sapply(sub_grid$geometry,get_grid_poi,'050000')
+get_sub_grid2=function(grid_sfc,id,type){
+
+  grid=st_sf(id,grid_sfc)
+  get_sub_grid(grid,type)
+  
+}
+?foreach
+for(i in 1:nrow(nj_grid_sub))
+  
+x=get_sub_grid(nj_grid_sub[1,],'050000')
+ x=sapply(sub_grid$geometry,get_grid_poi,'050000')
 
 x=get_grid_poi(nj_grid[4,],'050000')
 nj_grid$p20=x
 nj_poi1=get_poi(nj_grid[1,],'050000',3) %>% nrow
 x=make_sub_grid(sub_grid[3,],'050000')
+nj_grid$n_p1=sapply(nj_grid$geometry,poi_n_1page,'050000')
+nj_grid$n_p20=sapply(nj_grid$geometry,poi_n_20page,'050000')
+nj_grid_sub=filter(nj_grid,n_p20==20)
+nj_grid_valid=filter(nj_grid,n_p20!=20)%>% rbind(nj_grid_sub_valid)
+
+
+nj_grid_sub_valid=foreach(i=1:23,.combine = rbind) %do%  get_sub_grid(nj_grid_sub[i,],'050000')
+saveRDS(nj_grid_valid,'nj_grid_valid.rds')

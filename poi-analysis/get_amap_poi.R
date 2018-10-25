@@ -1,11 +1,12 @@
 #get amap poi
+#set up work environment
 library(pacman)
-p_load(tidyverse,sf,rlist,httr,jsonlite,tmap,tmaptools,magrittr)
+p_load(tidyverse,sf,rlist,httr,jsonlite,tmap,tmaptools,magrittr,foreach,rlist)
 library(Rgctc2,lib.loc='~/GitHub/R_coordination_transformation')
-options(digits=11)
-#1 get search bound
 getwd()
-
+options(digits=11)
+#define functions
+#1 get admin spatial information (boundry,center,sub_admin information)
 get_admin_geo= function(address){
   key = '7c6b6c0d1b641f4aa9cdb7d2229ae728'
   url = 'http://restapi.amap.com/v3/config/district?' %>%
@@ -42,9 +43,9 @@ get_admin_geo= function(address){
                   dplyr::select(-'districts') 
     
       center=sub_admin_geo$center %>% str_split(',') %>% 
-        list.rbind %>% apply(2,as.numeric)
-      center_wgs84=center %>% gcj02_wgs84_matrix_matrix
-      
+             list.rbind %>% apply(2,as.numeric)
+      center_wgs84=center %>% 
+                   gcj02_wgs84_matrix_matrix
       sub_admin_geo$center      = map2(center[,1],center[,2],
                                        function(x1,x2){c(x1,x2)%>%st_point}) %>% st_sfc
       sub_admin_geo$center_wgs84= map2(center_wgs84[,1],center_wgs84[,2],
@@ -54,27 +55,10 @@ get_admin_geo= function(address){
     names(admin_new)=c('admin_geo','sub_admin_geo')
     return(admin_new)
 }
-nj=get_admin_geo('南京')
 
-chn=get_admin_geo('中国')
-chn_sf=chn[[1]] 
-chn_sf$geometry_wgs84 %>% plot
-province=chn[[2]]
-adcode=province$adcode
-province=get_admin_geo(adcode[1]) %>% magrittr::extract2(1)
-for( i in 2:length(adcode)){
-  
- 
-  new_province=get_admin_geo(adcode[i]) %>% magrittr::extract2(1)
 
-  province=rbind(province,new_province)
-}
-
-saveRDS(province,'Province.rds')
-
-#make grid
-#1 get grid within city region
-nj_sf=nj$admin_geo
+#2 grid_spatial related functions
+#2.1 get grid within city region
 
 grid_intersects_admin =function(admin_sf){
   #the number of grid is 100 by default
@@ -84,8 +68,8 @@ grid_intersects_admin =function(admin_sf){
                     st_intersects(admin_sf)%>% sapply(length)%>% 
                     as.logical%>% magrittr::extract(admin_grid,.,)
 }
-nj_grid=grid_intersects_admin(nj_sf)
-#2 get dialog corner point coordinate of a grid 
+
+#2.2 get dialog corner point coordinate of a grid 
 
 get_grid_diag_coord=function(grid){
   grid_coord=grid %>%st_coordinates() %>% 
@@ -93,8 +77,9 @@ get_grid_diag_coord=function(grid){
   paste0(grid_coord[4,1],',',grid_coord[4,2],'|',grid_coord[2,1],',',grid_coord[2,2])
   
 }
-grid_coord_matrix=sapply(nj_grid$geometry,grid_diag_coord)
-#function to get poi information
+
+#3 functions to get poi information
+#3.1
 get_poi=function(polygon,type,npage){
   #
   key1='7a10a7d758402ca05b54c6badc1f0f18'
@@ -116,8 +101,54 @@ get_poi=function(polygon,type,npage){
   poi=GET(url)%>% content(as="text",encoding="UTF-8") %>% fromJSON(flatten = TRUE)  %>%
       magrittr::extract('pois') %>% '[['(1)%>% 
       dplyr::select(1,3,5,6,7,8,9,14,16,17,18,19,25)
+  #make it sf
+  location=poi$location %>% str_split(',') %>% 
+    list.rbind %>% apply(2,as.numeric)
+  location_wgs84=location %>% 
+    gcj02_wgs84_matrix_matrix
+    poi$geometry      = map2(location[,1],location[,2],
+                                   function(x1,x2){c(x1,x2)%>%st_point}) %>% st_sfc
+    poi$geometry_wgs84= map2(location_wgs84[,1],location_wgs84[,2],
+                                   function(x1,x2){c(x1,x2)%>% st_point}) %>% st_sfc(crs=4326)
+    poi=st_as_sf(poi,sf_column_name = 'geometry_wgs84')
 
   #poi information extract and uniform
+  return(poi)
+}
+#3.2 
+get_grid_poi=function(grid,type){
+
+  
+  grid_poi=get_poi(grid,type,1)
+  i=2
+  while(poi_n_page(grid,type,i)!='error'){
+    grid_poi_new=get_poi(grid,type,i)
+    grid_poi=rbind(grid_poi,grid_poi_new)
+    i=i+1
+  }
+  return(grid_poi)
+}
+
+#3.3
+get_poi_debug=function(polygon,type,npage){
+  #
+  key1='7a10a7d758402ca05b54c6badc1f0f18'
+  key0='7c6b6c0d1b641f4aa9cdb7d2229ae728'
+  #
+  grid_diag_coord=get_grid_diag_coord(polygon)#polygon must be a rectangular sf object
+  
+  url='https://restapi.amap.com/v3/place/polygon?' %>%
+    paste0(
+      'key=',key1,
+      '&polygon=',grid_diag_coord,
+      '&keywords=',
+      '&types=',type,
+      '&offset=20',
+      '&page=',npage,
+      '&output=json',
+      '&extensions=all'
+    )
+  poi=GET(url)%>% content(as="text",encoding="UTF-8") %>% fromJSON(flatten = TRUE) 
   return(poi)
 }
 
@@ -136,24 +167,10 @@ poi_n_page=function(grid,type,npage){
 poi_n_20page=function(grid,type){
   poi_n_page(grid,type,20)
 }
+
 poi_n_1page=function(grid,type){
   poi_n_page(grid,type,1)
 }
-x=sapply(sub_grid$geometry,poi_n_1page,'050000')
-
-#
-get_grid_poi=function(grid,type){
-
-   grid_poi=get_poi(grid,type,1)
-   i=2
-   while(poi_n_page(grid,type,i)!='error'){
-   grid_poi_new=get_poi(grid,type,i)
-   grid_poi=rbind(grid_poi,grid_poi_new)
-   i=i+1
-   }
-   return(grid_poi)
-}
-
 # divide grid into 4 piece and get poi for each piece
 make_sub_grid=function(grid,type){
   sub_grid=grid%>%st_make_grid(n=c(2,2))%>% st_sf(id=paste0(grid$id,1:4),geometry=.)
@@ -165,7 +182,6 @@ make_sub_grid=function(grid,type){
 }
 
 get_sub_grid=function(grid,type){
-
  
   sub_grid=make_sub_grid(grid,type)
   sub_grid_new=sub_grid[0,]
@@ -182,27 +198,46 @@ get_sub_grid=function(grid,type){
   return(sub_grid)
                         
 }
-get_sub_grid2=function(grid_sfc,id,type){
+#
+get_valid_grid=function(admin_sf_amap,type){
+  admin_grid=grid_intersects_admin(admin_sf_amap) #the coordinate system of admin_sf must be GCJ02
+  admin_grid$n_p1=sapply(admin_grid$geometry,poi_n_1page,type)
+  admin_grid$n_p20=sapply(admin_grid$geometry,poi_n_20page,type)
+  admin_grid_sub=filter(admin_grid,n_p20==20)
+  admin_grid_sub_valid=foreach(i=1:nrow(admin_grid_sub),.combine = rbind) %do%  get_sub_grid(admin_grid_sub[i,],type)
+  
+  admin_grid_valid=filter(admin_grid,n_p20!=20)%>%
+                   rbind(admin_grid_sub_valid) %>% 
+                   filter(n_p1!='error')
+  admin_grid_valid= admin_grid_valid %>% st_intersects(admin_sf_amap) %>% 
+                    sapply(length) %>% as.logical %>% magrittr::extract(admin_grid_valid,.,)
+  return(admin_grid_valid)
+}
+nj=get_admin_geo('南京')
+nj_sf_amap=nj$admin_geo%>% st_as_sf(geometry=geometry_amap)
+nj_grid_valid_050000=get_valid_grid(nj_sf_amap,'050000')
 
-  grid=st_sf(id,grid_sfc)
-  get_sub_grid(grid,type)
+
+
+poi_050000=map(nj_grid_valid$geometry,get_grid_poi,'050000')
+poi_050000_nj=list.rbind(poi_050000)
+poi_050000_nj=st_intersects(poi_050000_nj,nj_sf_amap) %>% sapply(length)%>% 
+              as.logical%>% magrittr::extract(poi_050000_nj,.,)
+
+
+saveRDS(nj_grid_valid,'nj_grid_valid.rds')
+get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
+  
+  poi_type=map(admin_grid_valid$geometry,get_grid_poi,type) %>%list.rbind
+  poi_type=st_as_sf(poi_type,geometry=geometry)
+  poi_type=st_intersects(poi_type,admin_sf_amap) %>% sapply(length)%>% 
+    as.logical%>% magrittr::extract(poi_type,.,)
   
 }
-?foreach
-for(i in 1:nrow(nj_grid_sub))
-  
-x=get_sub_grid(nj_grid_sub[1,],'050000')
- x=sapply(sub_grid$geometry,get_grid_poi,'050000')
 
-x=get_grid_poi(nj_grid[4,],'050000')
-nj_grid$p20=x
-nj_poi1=get_poi(nj_grid[1,],'050000',3) %>% nrow
-x=make_sub_grid(sub_grid[3,],'050000')
-nj_grid$n_p1=sapply(nj_grid$geometry,poi_n_1page,'050000')
-nj_grid$n_p20=sapply(nj_grid$geometry,poi_n_20page,'050000')
-nj_grid_sub=filter(nj_grid,n_p20==20)
-nj_grid_valid=filter(nj_grid,n_p20!=20)%>% rbind(nj_grid_sub_valid)
-
-
-nj_grid_sub_valid=foreach(i=1:23,.combine = rbind) %do%  get_sub_grid(nj_grid_sub[i,],'050000')
-saveRDS(nj_grid_valid,'nj_grid_valid.rds')
+nj_poi_050000=get_type_poi(nj_grid_valid_050000,nj_sf_amap,'050000')
+nj_grid_valid_060000=get_valid_grid(nj_sf_amap,'060000')
+poi_060000_nj=get_type_poi(nj_grid_valid_060000[1,],nj_sf_amap,'060000')
+get_grid_poi(nj_grid_valid_060000[1,],'060000')
+saveRDS(nj_poi_050000,'nj_poi_050000.rds')
+saveRDS(nj_grid_valid_060000,'nj_grid_valid_060000.rds')

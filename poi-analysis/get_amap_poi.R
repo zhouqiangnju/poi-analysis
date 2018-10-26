@@ -241,7 +241,8 @@ get_valid_grid=function(admin_sf_amap,type){
   for(i in 1:length(type)){
   city_grid_valid=get_valid_grid(admin_sf,type[i])
   city_poi_type=get_type_poi(city_grid_valid,admin_sf,type[i])
-  saveRDS(city_poi_type,paste0('poi_',type,'.rds'))}
+  saveRDS(city_poi_type,paste0('poi_',type,'.rds'))
+  Sys.sleep(5)}
   }
 #
 #

@@ -1,11 +1,27 @@
 #get amap poi
-#set up work environment
+
+get_city_poi=function(city,type=1,...){
+#set up work environment  
 library(pacman)
-p_load(tidyverse,sf,rlist,httr,jsonlite,tmap,tmaptools,magrittr,foreach,rlist)
+p_load(tidyverse,sf,rlist,httr,jsonlite,magrittr,foreach,rlist)
 
 library(Rgctc2,lib.loc='~/GitHub/R_coordination_transformation')
-getwd()
 options(digits=11)
+
+path=getwd()
+dir.create(paste0(path,'\\',city))
+setwd(paste0(path,'\\',city))
+
+# choose one of 3 types
+entity=c('050000','060000','070000','080000','090000','100000','110000','120000','130000','140000','150000','160000','170000')
+automobile=c('010000','020000','030000','040000')
+info_facilities=c('180000','190000','200000','220000','970000','990000')
+
+type=switch(type,
+       '1'=entity,
+       '2'=automobile,
+       '3'=info_facilities)
+
 #define functions
 #1 get admin spatial information (boundry,center,sub_admin information)
 get_admin_geo= function(address){
@@ -163,13 +179,6 @@ poi_n_page=function(grid,type,npage){
            )
 }
 
-poi_n_20page=function(grid,type){
-  poi_n_page(grid,type,20)
-}
-
-poi_n_1page=function(grid,type){
-  poi_n_page(grid,type,1)
-}
 # divide grid into 4 piece and get poi for each piece
 make_sub_grid=function(grid,type){
   sub_grid=grid%>%st_make_grid(n=c(2,2))%>% st_sf(id=paste0(grid$id,1:4),geometry=.)
@@ -199,43 +208,48 @@ get_sub_grid=function(grid,type){
 }
 #
 get_valid_grid=function(admin_sf_amap,type){
+
   admin_grid=grid_intersects_admin(admin_sf_amap) #the coordinate system of admin_sf must be GCJ02
-  admin_grid$n_p1=sapply(admin_grid$geometry,poi_n_1page,type)
-  admin_grid$n_p20=sapply(admin_grid$geometry,poi_n_20page,type)
+  admin_grid$n_p1=sapply(admin_grid$geometry,poi_n_page,type,1) #the poi number of page1
+  admin_grid$n_p20=sapply(admin_grid$geometry,poi_n_page,type,20) #the poi number of page20
   admin_grid_sub=filter(admin_grid,n_p20==20)
+  if (nrow(admin_grid_sub)>0){
   admin_grid_sub_valid=foreach(i=1:nrow(admin_grid_sub),.combine = rbind) %do%  get_sub_grid(admin_grid_sub[i,],type)
   
   admin_grid_valid=filter(admin_grid,n_p20!=20)%>%
                    rbind(admin_grid_sub_valid) %>% 
                    filter(n_p1!='error')
+  }else admin_grid_valid=admin_grid %>%filter(n_p1!='error') 
+  
   admin_grid_valid= admin_grid_valid %>% st_intersects(admin_sf_amap) %>% 
                     sapply(length) %>% as.logical %>% magrittr::extract(admin_grid_valid,.,)
   return(admin_grid_valid)
 }
 
 #
-get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
+  get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
   
   poi_type=map(admin_grid_valid$geometry,get_grid_poi,type) %>%list.rbind
   poi_type=st_as_sf(poi_type,geometry=geometry)
   poi_type=st_intersects(poi_type,admin_sf_amap) %>% sapply(length)%>% 
     as.logical%>% magrittr::extract(poi_type,.,)
   
-}
+  }
+  
+  admin_sf=get_admin_geo(city)
+  admin_sf=admin_sf$admin_geo %>% st_as_sf(geometry=geometry_amap)
+  for(i in 1:length(type)){
+  city_grid_valid=get_valid_grid(admin_sf,type[i])
+  city_poi_type=get_type_poi(city_grid_valid,admin_sf,type[i])
+  saveRDS(city_poi_type,paste0('poi_',type,'.rds'))}
+  }
 #
-nj=get_admin_geo('南京')
-nj_sf_amap=nj$admin_geo%>% st_as_sf(geometry=geometry_amap)
 #
-nj_grid_valid_050000=get_valid_grid(nj_sf_amap,'050000')
+get_city_poi('苏州')
 
-nj_poi_050000=get_type_poi(nj_grid_valid_050000,nj_sf_amap,'050000')
-#060000
-nj_grid_valid_170000=get_valid_grid(nj_sf_amap,'170000')
-nj_poi_170000=get_type_poi(nj_grid_valid_170000,nj_sf_amap,'170000')
-nj_poi_080000=rbind(nj_poi_070000_d,nj_poi_0700003,nj_poi_0700004)
-
-
-
-saveRDS(nj_poi_170000,'nj_poi_170000.rds')
-saveRDS(nj_grid_valid_170000,'nj_grid_valid_170000.rds')
+x=get_poi_city('南京','990000')
+x=get_poi_debug(nj_grid_valid_170000[23,],'180000',1)
+x=get_sub_grid(nj_sf_amap,'180000')
+x[1,] %>% get_valid_grid('180000')
+get_poi_debug(nj_grid_valid_180000[34,],'220000',1)
 

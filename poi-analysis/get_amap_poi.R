@@ -2,6 +2,7 @@
 #set up work environment
 library(pacman)
 p_load(tidyverse,sf,rlist,httr,jsonlite,tmap,tmaptools,magrittr,foreach,rlist)
+
 library(Rgctc2,lib.loc='~/GitHub/R_coordination_transformation')
 getwd()
 options(digits=11)
@@ -85,7 +86,7 @@ get_poi=function(polygon,type,npage){
   key1='7a10a7d758402ca05b54c6badc1f0f18'
   key0='7c6b6c0d1b641f4aa9cdb7d2229ae728'
   #
-  grid_diag_coord=get_grid_diag_coord(polygon)#polygon must be a rectangular sf object
+  grid_diag_coord=get_grid_diag_coord(polygon)#polygon must be a rectangular sf  object
   
   url='https://restapi.amap.com/v3/place/polygon?' %>%
        paste0(
@@ -117,8 +118,6 @@ get_poi=function(polygon,type,npage){
 }
 #3.2 
 get_grid_poi=function(grid,type){
-
-  
   grid_poi=get_poi(grid,type,1)
   i=2
   while(poi_n_page(grid,type,i)!='error'){
@@ -213,19 +212,8 @@ get_valid_grid=function(admin_sf_amap,type){
                     sapply(length) %>% as.logical %>% magrittr::extract(admin_grid_valid,.,)
   return(admin_grid_valid)
 }
-nj=get_admin_geo('南京')
-nj_sf_amap=nj$admin_geo%>% st_as_sf(geometry=geometry_amap)
-nj_grid_valid_050000=get_valid_grid(nj_sf_amap,'050000')
 
-
-
-poi_050000=map(nj_grid_valid$geometry,get_grid_poi,'050000')
-poi_050000_nj=list.rbind(poi_050000)
-poi_050000_nj=st_intersects(poi_050000_nj,nj_sf_amap) %>% sapply(length)%>% 
-              as.logical%>% magrittr::extract(poi_050000_nj,.,)
-
-
-saveRDS(nj_grid_valid,'nj_grid_valid.rds')
+#
 get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
   
   poi_type=map(admin_grid_valid$geometry,get_grid_poi,type) %>%list.rbind
@@ -234,10 +222,20 @@ get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
     as.logical%>% magrittr::extract(poi_type,.,)
   
 }
+#
+nj=get_admin_geo('南京')
+nj_sf_amap=nj$admin_geo%>% st_as_sf(geometry=geometry_amap)
+#
+nj_grid_valid_050000=get_valid_grid(nj_sf_amap,'050000')
 
 nj_poi_050000=get_type_poi(nj_grid_valid_050000,nj_sf_amap,'050000')
-nj_grid_valid_060000=get_valid_grid(nj_sf_amap,'060000')
-poi_060000_nj=get_type_poi(nj_grid_valid_060000[1,],nj_sf_amap,'060000')
-get_grid_poi(nj_grid_valid_060000[1,],'060000')
-saveRDS(nj_poi_050000,'nj_poi_050000.rds')
-saveRDS(nj_grid_valid_060000,'nj_grid_valid_060000.rds')
+#060000
+nj_grid_valid_170000=get_valid_grid(nj_sf_amap,'170000')
+nj_poi_170000=get_type_poi(nj_grid_valid_170000,nj_sf_amap,'170000')
+nj_poi_080000=rbind(nj_poi_070000_d,nj_poi_0700003,nj_poi_0700004)
+
+
+
+saveRDS(nj_poi_170000,'nj_poi_170000.rds')
+saveRDS(nj_grid_valid_170000,'nj_grid_valid_170000.rds')
+

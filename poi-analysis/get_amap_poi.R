@@ -3,31 +3,44 @@
 get_city_poi=function(city,type=1,...){
 #set up work environment  
 library(pacman)
-p_load(tidyverse,sf,rlist,httr,jsonlite,magrittr,foreach,rlist)
+p_load(tidyverse,sf,rlist,httr,jsonlite,magrittr,foreach,rlist,tcltk)
 
 library(Rgctc2,lib.loc='~/GitHub/R_coordination_transformation')
 options(digits=11)
 
-path=getwd()
-dir.create(paste0(path,'\\',city))
-setwd(paste0(path,'\\',city))
+path='~/GitHub/poi-analysis'
+setwd(path)
+if(city %in% list.files()) {
+  setwd(paste0(path,'\\',city))}else {
+    dir.create(paste0(path,'\\',city))
+      setwd(paste0(path,'\\',city))
+  }
+#
 
 # choose one of 3 types
+type_name=c('entity','automobile','info_facilities')
+type=type_name[type]
+if(!(type %in% list.files())){
+  dir.create(paste0(getwd(),'\\',type))
+  
+}
+paste0(getwd(),'\\',type) %>% setwd()
+
 entity=c('050000','060000','070000','080000','090000','100000','110000','120000','130000','140000','150000','160000','170000')
 automobile=c('010000','020000','030000','040000')
 info_facilities=c('180000','190000','200000','220000','970000','990000')
-
 type=switch(type,
-       '1'=entity,
-       '2'=automobile,
-       '3'=info_facilities)
+       'entity'=entity,
+       'automobile'=automobile,
+       'info_facilities'=info_facilities)
 
 #define functions
 #1 get admin spatial information (boundry,center,sub_admin information)
-get_admin_geo= function(address){
+get_admin_geo= function(city){
+
   key = '7c6b6c0d1b641f4aa9cdb7d2229ae728'
   url = 'http://restapi.amap.com/v3/config/district?' %>%
-        paste('keywords=' , address ,
+        paste('keywords=' , city ,
           '&key=' ,key ,
           '&subdistrict=3' ,
           '&extensions=all',
@@ -37,7 +50,7 @@ get_admin_geo= function(address){
         magrittr::extract2('districts')
   #extract information
   admin_geo      = dplyr::select(admin,-'districts')
-  sub_admin_geo = admin %>% select(districts) %>% 
+  sub_admin_geo = admin %>% dplyr::select(districts) %>% 
                   magrittr::extract2(1) %>% 
                   magrittr::extract2(1)
             
@@ -229,6 +242,7 @@ get_valid_grid=function(admin_sf_amap,type){
 #
   get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
   
+<<<<<<< HEAD
   poi_type=map(admin_grid_valid$geometry,get_grid_poi,type) %>%list.rbind
   poi_type=st_as_sf(poi_type,geometry=geometry)
   poi_type=st_intersects(poi_type,admin_sf_amap) %>% sapply(length)%>% 
@@ -253,4 +267,34 @@ x=get_poi_debug(nj_grid_valid_170000[23,],'180000',1)
 x=get_sub_grid(nj_sf_amap,'180000')
 x[1,] %>% get_valid_grid('180000')
 get_poi_debug(nj_grid_valid_180000[34,],'220000',1)
+=======
+  poi_type= map(admin_grid_valid$geometry,get_grid_poi,type) %>%
+            list.rbind
+  poi_type= st_as_sf(poi_type,geometry=geometry)
+  poi_type= st_intersects(poi_type,admin_sf_amap) %>% 
+            sapply(length)%>% 
+            as.logical%>% magrittr::extract(poi_type,.,)
+}
+>>>>>>> caf37fc49df314631701b89013e6923b8282c7b4
 
+   
+    admin_sf=get_admin_geo(city)
+    admin_sf=admin_sf$admin_geo %>% st_as_sf(geometry=geometry_amap)
+    
+    d=(list.files() %>% length())+1
+    #此为一简易判断函数，仅在以type为名的文件夹中没有文件或仅包含由
+    #本程序此前下载的数据时方为正确，因为本函数只以当前文件夹中的文件个数
+    #作为其后程序运行的起点，并不判断当前文件夹中的文件的性质。如文件夹中包含无关文件，也将被视作有效文件。
+ 
+      
+    pb <- tkProgressBar("进度","已完成 %", 0, 100)
+    for(j in d:length(type)){
+    info<- sprintf("已完成 %d%%", round(j*100/length(type)))
+    setTkProgressBar(pb, j*100/length(type), sprintf("进度 (%s)", info),info)
+  city_grid_valid=get_valid_grid(admin_sf,type[j])
+  city_poi_type=get_type_poi(city_grid_valid,admin_sf,type[j])
+  saveRDS(city_poi_type,paste0('poi_',type[j],'.rds'))
+  Sys.sleep(10)}
+  close(pb)
+}
+get_city_poi('宿迁')

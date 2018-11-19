@@ -242,6 +242,32 @@ get_valid_grid=function(admin_sf_amap,type){
 #
   get_type_poi=function(admin_grid_valid,admin_sf_amap,type){
   
+<<<<<<< HEAD
+  poi_type=map(admin_grid_valid$geometry,get_grid_poi,type) %>%list.rbind
+  poi_type=st_as_sf(poi_type,geometry=geometry)
+  poi_type=st_intersects(poi_type,admin_sf_amap) %>% sapply(length)%>% 
+    as.logical%>% magrittr::extract(poi_type,.,)
+  
+  }
+  
+  admin_sf=get_admin_geo(city)
+  admin_sf=admin_sf$admin_geo %>% st_as_sf(geometry=geometry_amap)
+  for(i in 1:length(type)){
+  city_grid_valid=get_valid_grid(admin_sf,type[i])
+  city_poi_type=get_type_poi(city_grid_valid,admin_sf,type[i])
+  saveRDS(city_poi_type,paste0('poi_',type[i],'.rds'))
+  Sys.sleep(5)}
+  }
+#
+#
+get_city_poi('ËÕÖÝ')
+
+x=get_poi_city('ÄÏ¾©','990000')
+x=get_poi_debug(nj_grid_valid_170000[23,],'180000',1)
+x=get_sub_grid(nj_sf_amap,'180000')
+x[1,] %>% get_valid_grid('180000')
+get_poi_debug(nj_grid_valid_180000[34,],'220000',1)
+=======
   poi_type= map(admin_grid_valid$geometry,get_grid_poi,type) %>%
             list.rbind
   poi_type= st_as_sf(poi_type,geometry=geometry)
@@ -249,6 +275,7 @@ get_valid_grid=function(admin_sf_amap,type){
             sapply(length)%>% 
             as.logical%>% magrittr::extract(poi_type,.,)
 }
+>>>>>>> caf37fc49df314631701b89013e6923b8282c7b4
 
    
     admin_sf=get_admin_geo(city)

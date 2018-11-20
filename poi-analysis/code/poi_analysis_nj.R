@@ -1,17 +1,45 @@
 library(pacman)
-p_load(sf,raster,tidyverse,spatstat,maptools)
+p_load(sf,raster,tidyverse,spatstat,maptools,foreach)
 
 #data input
-nj_owin=readRDS('C:/Users/zhouq/Documents/GitHub/data/data_universal/geometry_of_js_highrate_jq/nj_district_owin.rds')
-nj_poi=readRDS('C:/Users/zhouq/Documents/GitHub/poi_data/city/nj_entity_poi.rds') %>% st_transform(4509)
-jq_poly=readRDS('C:/Users/zhouq/Documents/GitHub/data/data_universal/geometry_of_js_highrate_jq/jq_polygon.rds')  %>% st_transform(4509)
-nj_sf=readRDS('~/GitHub/data/data_universal/geometry_of_js_highrate_jq/nj_district_sf.rds') %>% st_transform(4509)
-x=st_intersects(nj_poi,nj_sf) 
-y=lapply(x,length) %>% unlist %>% sapply(is.logical)
-poi=nj_poi[y==1,]
-#make ppp files
-nj_owin=nj_sf %>% as('Spatial') %>% as('SpatialPolygons') %>% as('owin')
-poi_coord=st_coordinates(nj_poi)
-poi_ppp=ppp(x=poi_coord[,1],y=poi_coord[,2],window=nj_owin,marks = nj_poi$typecode)
-rm(poi_ppp)
 
+nj_poi=readRDS('~/GitHub/data/poi_analysis/nj_entity_poi(type).rds') %>% st_transform(4509)
+jq_poly=readRDS('~/GitHub/data/data_universal/geometry_of_js_highrate_jq/jq_polygon.rds')  %>% st_transform(4509)
+nj_sf=readRDS('~/GitHub/data/poi_analysis/nj_district_sf.rds') %>% st_transform(4509)
+x=st_intersects(nj_poi,nj_sf)%>%lapply(length) %>% unlist
+poi=nj_poi[x==1,]
+#make ppp files
+#make owin for whole city of nanjing
+nj_city_owin=nj_sf %>% as('Spatial') %>% as('SpatialPolygons') %>% as('owin')
+#make tess files from  owin of every districts of nanjing 
+nj_district = list()
+
+for(i in 1:nrow(nj_sf))
+{ nj_district[[i]]=
+   as(nj_sf[i,],'Spatial') %>% as('SpatialPolygons') %>% as('owin')}
+nj_district_owin = nj_district%>%tess(tiles=. )
+#make ppp file for poi
+poi_coord=st_coordinates(poi)
+marks_df=dplyr::select(poi,adcode,type1,type2) 
+st_geometry(marks_df)=NULL
+poi_ppp=ppp(x=poi_coord[,1],y=poi_coord[,2],window=nj_city_owin,marks = marks_df)
+quadratcount.ppp(poi_ppp,tess=nj_district_owin)
+poi_ppp$marks$adcode=factor(poi_ppp$marks$adcode)
+summary(poi_ppp)
+saveRDS(poi,'poi_for_ppp.rds')
+saveRDS(poi_ppp,'nj_poi_ppp.rds')
+
+#
+unitname(poi_ppp)='meter'
+summary(poi_ppp)
+den=density(poi_ppp,sigma=70)
+plot(den)
+plot(poi_ppp,add=TRUE)
+dev.off()
+persp(den,theta=30)
+?persp
+?spatstat::persp.im()
+contour(den,axes=F)
+aden=adaptive.density(poi_ppp,f=0.01,nrep=10)
+library(spatstat.utils)
+ad

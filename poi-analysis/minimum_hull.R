@@ -27,24 +27,22 @@ co_db_ordered$theta.order=1:nrow(co_db_ordered)
 p=filter(co_db_ordered,cos.theta=='NaN')
 co_db_ordered=filter(co_db_ordered,cos.theta!='NaN')
 p[2:3,]=co_db_ordered[1:2,]
-p=p_i
+
 top=nrow(p)
 cross_vector=function(p0,p1,c){#即进行判断的点总是有两个来自于P点集，一个来自于co_db_ordered点集
 
   (c$X-p0$X)*(p1$Y-p0$Y)-(p1$X-p0$X)*(c$Y-p0$Y)
 }
-top=nrow(p)
-
 
  for (i in 3:(nrow(co_db_ordered))){
    while(cross_vector(p[top-1,],p[top,],co_db_ordered[i,])>0){
-     p[top,]=p[top-1,]
+     p=p[-top,]
      top=top-1
    }
    p[top+1,]=co_db_ordered[i,]
    top=top+1
  }
-p=p[1:top,]
+
 p_sf=st_as_sf(p,coords=c('X','Y'),crs=4509)
 tm_shape(co_db_sf)+tm_dots(alpha=1)+
   tm_shape(p_sf)+tm_dots(col='red',size=0.2)+tm_text('theta.order',auto.placement  = T)

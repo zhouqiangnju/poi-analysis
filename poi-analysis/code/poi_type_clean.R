@@ -1,5 +1,6 @@
 #poi type clea
 library('doParallel')
+library(tidyverse)
 nj_entity_poi=readRDS('~/GitHub/data/poi_analysis/nj_entity_poi(type).rds') 
 type=nj_entity_poi$typecode 
 prefix_og=type %>% str_extract('^\\d{2}')
@@ -26,9 +27,14 @@ type_extract=function(typecode){
    }
    type=cbind(type1,type2) 
 }
-x=foreach(i=1:nrow(nj_entity_poi),.combine = rbind) %dopar% type_extract(nj_entity_poi$typecode[i]) 
+system.time(x<-foreach(i=1:nrow(nj_entity_poi),.combine = rbind,.packages = 'tidyverse') %do% 
+  type_extract(nj_entity_poi$typecode[i]))
 
-type_add=map(poi$typecode,type_extract)
+system.time( x <- mean(1000,10000))
+?system.time
+system.time(type_add<-map(nj_entity_poi$typecode,type_extract))
+system.time()
+type_add=lapply(nj_entity_poi$typecode,type_extract)
 type_add=rlist::list.rbind(type_add)
 type_add_sf=as.data.frame(type_add)
 poi_add=cbind(poi,type_add_sf)
@@ -48,3 +54,10 @@ cl<-makeCluster(4)
 registerDoParallel(cl)  
 stopImplicitCluster()
 stopCluster()
+getCluster()
+
+library(parallel)
+cl.cores <- detectCores()
+cl=makeCluster(4)
+system.time(results=parLapply(cl,nj_entity_poi$typecode,type_extract))
+?parLapply

@@ -1,6 +1,5 @@
 library(pacman)
-p_load(sf,raster,tidyverse,spatstat,maptools,foreach)
-library(tmap)
+p_load(sf,raster,tidyverse,spatstat,maptools,foreach,tmaptools,tmap)
 #data input
 
 nj_poi=readRDS('~/GitHub/data/poi_analysis/nj_entity_poi(type).rds') %>% st_transform(4509)
@@ -54,14 +53,15 @@ saveRDS(poi,'poi_for_ppp.rds')
 saveRDS(poi_ppp,'nj_poi_ppp.rds')
 
 #
-unitname(poi_ppp)='meter'
-summary(poi_ppp)
-den=density(poi_ppp,sigma=70)
-plot(den)
-plot(poi_ppp,add=TRUE)
-dev.off()
-persp(den,theta=30)
-?persp
-?spatstat::persp.im()
-contour(den,axes=F)
-aden=adaptive.density(poi_ppp,f=0.01,nrep=10)
+den=density(poi_ppp,sigma=2.3)
+plot(den_r)
+den_r=raster(den)
+den_s=smooth_map(poi,cover=as(nj_sf,'Spatial'),bandwidth = 0.4)
+plot(den_s$raster)
+den_raster=den_s$raster
+den_value2=values(den_r)
+den_con2=rasterToContour(den_r,maxpixels = 260000,levels=pretty(range(den_value2,na.rm=T),200))
+plot(den_con2)
+?rasterToContour
+?ContourLines2SLDF
+den_raster
